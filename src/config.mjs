@@ -81,6 +81,12 @@ export function loadConfig(env = process.env) {
     // holds a battery camera's radio open for ~28s per event. Set BRIDGE_PREWARM=1 to enable the SDK's
     // default pre-warm events.
     prewarm: truthy(env.BRIDGE_PREWARM),
+    // Whether to run the bundled go2rtc at all. ON by default — video is why most deployments exist.
+    // Turn it OFF where another go2rtc already serves these cameras (a Frigate host is the common case):
+    // the bundled one then loses :1984/:8554 to whoever booted first and — worse — may WIN :8555 and
+    // take WebRTC away from the instance that actually has viewers. A bridge with go2rtc off still
+    // serves WS control, snapshots and event images; only its own live video goes away.
+    go2rtc: env.BRIDGE_GO2RTC == null ? true : truthy(env.BRIDGE_GO2RTC),
   };
 
   const DEBUG = truthy(env.BRIDGE_DEBUG);
