@@ -115,7 +115,7 @@ export function createWsServer(ctx, httpServer) {
           const args = Array.isArray(msg.args) ? msg.args : [];
           const dev = await eufy.getDevice(msg.sn);
           // Capability surfaces that expose actions. Add more accessors here as needed.
-          const surfaces = [dev.smartLight?.(), dev.camera?.()].filter(Boolean);
+          const surfaces = [dev.smartLight?.(), dev.camera?.(), dev.ptz?.()].filter(Boolean);
           const surface = surfaces.find((s) => typeof s?.[action] === "function");
           if (!surface) return fail(`no action '${action}' on ${msg.sn}`);
           const t0 = Date.now();

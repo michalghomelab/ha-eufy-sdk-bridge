@@ -18,6 +18,7 @@ import { createHttpHandler } from "../src/http-routes.mjs";
 import { createWsServer } from "../src/ws-server.mjs";
 
 function fakeEufy() {
+  const ptzCalls = [];
   const devices = {
     CAM1: {
       describe: () => ({
@@ -26,9 +27,17 @@ function fakeEufy() {
         model: "T8410",
         modelName: "Indoor",
         codec: "camera",
-        capabilities: ["camera", "video", "battery"],
+        capabilities: ["camera", "video", "battery", "ptz"],
       }),
       getProperties: () => ({ battery: { value: 74 }, motion: { value: false } }),
+      // Pan-tilt surface, shaped like the SDK's: four no-arg compass verbs plus `rotate`.
+      ptz: () => ({
+        left: async () => void ptzCalls.push("left"),
+        right: async () => void ptzCalls.push("right"),
+        up: async () => void ptzCalls.push("up"),
+        down: async () => void ptzCalls.push("down"),
+        rotate: async (direction) => void ptzCalls.push(`rotate:${direction}`),
+      }),
     },
     SENSOR1: {
       describe: () => ({
@@ -43,6 +52,7 @@ function fakeEufy() {
     },
   };
   return {
+    ptzCalls,
     pollIntervalMs: 600000,
     async getDevices() {
       return [{ sn: "CAM1" }, { sn: "SENSOR1" }];
@@ -155,5 +165,34 @@ test("http: /healthz reports ok + auth + empty streaming", async () => {
   assert.deepEqual(out.auth, { state: "pending" });
   assert.deepEqual(out.streaming, []);
   assert.equal(out.streamIdleMs, 300000);
+  httpServer.close();
+});
+
+test("ws: device.action reaches the ptz surface", async () => {
+  const { ctx, state, httpServer } = buildCtx();
+  state.flags.ready = true;
+
+  // The no-arg compass verb, and `rotate`, which takes its direction positionally.
+  const step = await wsCall(ctx, { id: 1, cmd: "device.action", sn: "CAM1", action: "left" });
+  assert.equal(step[0].ok, true);
+  const rot = await wsCall(ctx, {
+    id: 2,
+    cmd: "device.action",
+    sn: "CAM1",
+    action: "rotate",
+    args: ["right"],
+  });
+  assert.equal(rot[0].ok, true);
+  assert.deepEqual(ctx.eufy.ptzCalls, ["left", "rotate:right"]);
+
+  // A verb no exposed surface carries is still rejected rather than silently ignored.
+  const nope = await wsCall(ctx, { id: 3, cmd: "device.action", sn: "CAM1", action: "selfDestruct" });
+  assert.equal(nope[0].ok, false);
+  assert.match(nope[0].error, /no action/);
+
+  // A device without the surface keeps failing too.
+  const sensor = await wsCall(ctx, { id: 4, cmd: "device.action", sn: "SENSOR1", action: "left" });
+  assert.equal(sensor[0].ok, false);
+
   httpServer.close();
 });

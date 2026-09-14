@@ -174,6 +174,27 @@ device's capabilities expose (e.g. `statusLed`, `nightVision`, guard-mode `mode`
 { "id": 6, "ok": false, "error": "device … does not support 'statusLed'" }
 ```
 
+### `device.action`
+
+Invoke a capability **action** — a typed method rather than a scalar property, so `device.set` cannot
+reach it (a PTZ step, or smart-light `setColor({red,green,blue})`). `args` is the positional argument
+list. Only methods on a capability surface the bridge exposes are reachable: `smart_light`, `camera`
+and `ptz`. _(Requires auth.)_
+
+```jsonc
+// → one PTZ step (the SDK's no-arg `left` / `right` / `up` / `down` verbs)
+{ "id": 7, "cmd": "device.action", "sn": "EXAMPLE-CAM-0001", "action": "left" }
+// ←
+{ "id": 7, "ok": true, "result": null }
+// → the same step through `rotate`, which takes a direction
+{ "id": 8, "cmd": "device.action", "sn": "EXAMPLE-CAM-0001", "action": "rotate", "args": ["left"] }
+// unknown action, or a device without that capability →
+{ "id": 9, "ok": false, "error": "no action 'left' on EXAMPLE-CAM-0001" }
+```
+
+Movement is **fire-and-forget**: P2P carries no ack, so `ok: true` says the frame went out, not that the
+camera moved. Progress arrives separately as `ptzNotify` events.
+
 ### `device.reboot`
 
 Reboot a **HomeBase / station** (maps to the SDK's `reboot`). Only devices with `canReboot: true` accept
@@ -312,8 +333,10 @@ raw video protocol.
 
 ## Not yet exposed
 
-- Capability **action** verbs (PTZ move, siren test, talkback) — only property writes via `device.set`
-  today.
+- Capability **action** verbs on surfaces `device.action` does not list yet (siren test, talkback) —
+  `smart_light`, `camera` and `ptz` are reachable today.
+- PTZ **presets** (`preset().goto(id)`, `save`, `list`, …) — `device.action` calls a method on the
+  surface itself, so an accessor that returns a sub-API is out of its reach.
 - Guard / station security mode (arm home/away/disarm).
 - Per-device event subscription/filtering (events broadcast to all clients).
 - Audio / recording / timelapse.
