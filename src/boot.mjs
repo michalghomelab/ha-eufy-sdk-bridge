@@ -12,6 +12,10 @@ export function createBoot(ctx) {
   /** Spawn the bundled go2rtc against the generated config. Non-fatal if the binary isn't present (dev). */
   function startGo2rtc() {
     if (flags.go2rtcProc) return;
+    if (!cfg.go2rtc) {
+      console.log("[bridge] go2rtc disabled (BRIDGE_GO2RTC=0) — WS control, snapshots and events still up");
+      return;
+    }
     try {
       flags.go2rtcProc = spawn("go2rtc", ["-config", cfg.go2rtcConfig], { stdio: "inherit" });
       flags.go2rtcProc.on("error", (e) =>
