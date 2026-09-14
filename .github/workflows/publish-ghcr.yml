@@ -1,7 +1,7 @@
 # Publish the multi-arch bridge image to GitHub Container Registry on a release.
 #
 # Trigger: a published GitHub Release (the release tag names the version), or a manual run.
-# Output:  ghcr.io/mega-yfue/ha-eufy-sdk-bridge:<version> + :latest — one manifest carrying
+# Output:  ghcr.io/<owner>/ha-eufy-sdk-bridge:<version> + :latest — one manifest carrying
 #          linux/amd64 + linux/arm64 (node:24-alpine has no arm/v7 base).
 #
 # The SDK is a PUBLIC npm package (pulled by `npm ci` in the build), so no SDK checkout / build context.
@@ -26,7 +26,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE: ghcr.io/mega-yfue/ha-eufy-sdk-bridge
+  IMAGE: ghcr.io/${{ github.repository_owner }}/ha-eufy-sdk-bridge
 
 jobs:
   publish:
