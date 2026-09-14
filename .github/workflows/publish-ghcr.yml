@@ -25,14 +25,26 @@ permissions:
   contents: read
   packages: write
 
-env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/ha-eufy-sdk-bridge
-
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve the image name
+        # The owner decides the GHCR namespace, but an image reference admits neither
+        # uppercase nor a trailing separator, and account names admit both. Lowercase it
+        # here, and say plainly which names cannot work rather than failing later inside
+        # buildx with a bare "invalid reference format".
+        run: |
+          OWNER="$(printf '%s' "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          case "$OWNER" in
+            *[!a-z0-9._-]* | *[._-] | [._-]*)
+              echo "::error::owner '$OWNER' cannot be a Docker image path component (it must be lowercase alphanumerics with inner . _ - only). Publish from an organisation whose name qualifies."
+              exit 1
+              ;;
+          esac
+          echo "IMAGE=ghcr.io/$OWNER/ha-eufy-sdk-bridge" >> "$GITHUB_ENV"
 
       - name: Resolve version (release tag must match package.json)
         id: v
