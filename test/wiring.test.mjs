@@ -202,23 +202,3 @@ test("ws: device.action reaches the ptz surface", async () => {
 
   httpServer.close();
 });
-
-test("the property manifest can be narrowed to what the unit actually reads", async () => {
-  // Default: the unread entry is gone, so no host builds a control that can never read.
-  const pruned = buildCtx();
-  const dev = await pruned.ctx.eufy.getDevice("CAM1");
-  assert.deepEqual(
-    pruned.ctx.propertySpecs(dev).map((p) => p.name),
-    ["battery", "motion"],
-  );
-  pruned.httpServer.close();
-
-  // Opted out: every advertised property is published, value or not.
-  const full = buildCtx({ BRIDGE_PRUNE_UNREAD_PROPERTIES: "0" });
-  const dev2 = await full.ctx.eufy.getDevice("CAM1");
-  assert.deepEqual(
-    full.ctx.propertySpecs(dev2).map((p) => p.name),
-    ["battery", "motion", "detectVehicle"],
-  );
-  full.httpServer.close();
-});

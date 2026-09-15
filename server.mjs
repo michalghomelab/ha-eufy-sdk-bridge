@@ -101,7 +101,6 @@ async function shutdown() {
   if (timers.watchdog) clearInterval(timers.watchdog);
   if (timers.streamIdle) clearInterval(timers.streamIdle);
   if (timers.rtspIdle) clearInterval(timers.rtspIdle);
-  flags.go2rtcProc?.kill();
   await closeStreamClients();
   await eufy.disconnect?.();
   process.exit(0);

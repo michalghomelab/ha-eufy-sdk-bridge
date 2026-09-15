@@ -13,10 +13,3 @@ test("BRIDGE_PREWARM=1 turns pre-warm on (SDK default events)", () => {
   assert.equal(loadConfig({ ...base, BRIDGE_PREWARM: "true" }).cfg.prewarm, true);
   assert.equal(loadConfig({ ...base, BRIDGE_PREWARM: "0" }).cfg.prewarm, false);
 });
-
-test("the bundled go2rtc runs unless BRIDGE_GO2RTC says otherwise", () => {
-  assert.equal(loadConfig(base).cfg.go2rtc, true); // absent → on, so nothing changes by upgrading
-  assert.equal(loadConfig({ ...base, BRIDGE_GO2RTC: "0" }).cfg.go2rtc, false);
-  assert.equal(loadConfig({ ...base, BRIDGE_GO2RTC: "false" }).cfg.go2rtc, false);
-  assert.equal(loadConfig({ ...base, BRIDGE_GO2RTC: "1" }).cfg.go2rtc, true);
-});

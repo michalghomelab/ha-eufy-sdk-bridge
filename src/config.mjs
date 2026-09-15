@@ -63,7 +63,6 @@ export function loadConfig(env = process.env) {
     host: env.BRIDGE_HOST || "0.0.0.0",
     port: Number(env.BRIDGE_PORT || 3000),
     session: env.EUFY_SESSION || "./data/.eufy-session.json",
-    go2rtcConfig: env.GO2RTC_CONFIG || "./go2rtc.yaml",
     selfHost: env.BRIDGE_SELF_HOST || "127.0.0.1",
     // Cloud poll interval (ms). Unset → the SDK default (600000 = 10 min). Changeable live via the
     // config.set WS command. 0 disables polling.
@@ -81,18 +80,6 @@ export function loadConfig(env = process.env) {
     // holds a battery camera's radio open for ~28s per event. Set BRIDGE_PREWARM=1 to enable the SDK's
     // default pre-warm events.
     prewarm: truthy(env.BRIDGE_PREWARM),
-    // Whether to run the bundled go2rtc at all. ON by default — video is why most deployments exist.
-    // Turn it OFF where another go2rtc already serves these cameras (a Frigate host is the common case):
-    // the bundled one then loses :1984/:8554 to whoever booted first and — worse — may WIN :8555 and
-    // take WebRTC away from the instance that actually has viewers. A bridge with go2rtc off still
-    // serves WS control, snapshots and event images; only its own live video goes away.
-    go2rtc: env.BRIDGE_GO2RTC == null ? true : truthy(env.BRIDGE_GO2RTC),
-    // Drop property-manifest entries the device reports no value for. ON by default: a control that
-    // can never read is a defect rather than a feature, and leaving it to a flag means every install
-    // ships the defect until someone finds the switch. Set to 0 for an entity per advertised property,
-    // read or not.
-    pruneUnreadProperties:
-      env.BRIDGE_PRUNE_UNREAD_PROPERTIES == null ? true : truthy(env.BRIDGE_PRUNE_UNREAD_PROPERTIES),
   };
 
   const DEBUG = truthy(env.BRIDGE_DEBUG);

@@ -1,36 +1,13 @@
-// The one-time post-login boot: wire the SDK event handlers, publish the go2rtc config, start go2rtc, arm
+// The one-time post-login boot: wire the SDK event handlers, arm
 // the periodic sweeps, and flip `ready`. Guarded so it runs exactly once — a later re-auth calls it again
 // but returns immediately, so listeners and timers are never double-wired. Non-critical warm-ups are
 // kicked off after `ready` so they don't hold up serving.
-import { spawn } from "node:child_process";
-import { writeGo2rtcConfig } from "../go2rtc-config.mjs";
 
 export function createBoot(ctx) {
   const { cfg, eufy, DEBUG, SCHEMA_VERSION, dbg, DETECTION_EVENTS, FORWARDED_EVENTS } = ctx;
   const { flags, timers } = ctx.state;
 
-  /** Spawn the bundled go2rtc against the generated config. Non-fatal if the binary isn't present (dev). */
-  function startGo2rtc() {
-    if (flags.go2rtcProc) return;
-    if (!cfg.go2rtc) {
-      console.log("[bridge] go2rtc disabled (BRIDGE_GO2RTC=0) — WS control, snapshots and events still up");
-      return;
-    }
-    try {
-      flags.go2rtcProc = spawn("go2rtc", ["-config", cfg.go2rtcConfig], { stdio: "inherit" });
-      flags.go2rtcProc.on("error", (e) =>
-        console.error(`[bridge] go2rtc not started (${e.message}) — WS/control still up`),
-      );
-      flags.go2rtcProc.on("exit", (code) => {
-        console.error(`[bridge] go2rtc exited (${code})`);
-        flags.go2rtcProc = undefined;
-      });
-    } catch (e) {
-      console.error(`[bridge] go2rtc spawn failed: ${e?.message ?? e}`);
-    }
-  }
-
-  /** Runs once, after a successful login: wire events, write go2rtc.yaml, start go2rtc, go ready. */
+  /** Runs once, after a successful login: wire events, warm the device list, go ready. */
   async function completeBoot() {
     if (flags.ready || flags.booting) return;
     flags.booting = true;
@@ -65,10 +42,8 @@ export function createBoot(ctx) {
         });
       // Use the same capability-based view the WS/HA side uses: a camera is a device describeDevice gave
       // a `stream`, NOT deviceClass==="camera" (the SDK downgrades a camera behind a HomeBase to "other"),
-      // so go2rtc registers exactly the cameras HA shows.
+      // so the device list HA sees is the one the bridge warmed.
       const summaries = await ctx.deviceList();
-      const cams = await writeGo2rtcConfig(cfg, summaries);
-      startGo2rtc();
       flags.ready = true;
       flags.lastActivity = Date.now(); // start the liveness clock at boot, before the first poll
       timers.watchdog ??= setInterval(() => void ctx.watchdogTick(), 2 * 60_000);
@@ -87,5 +62,5 @@ export function createBoot(ctx) {
     }
   }
 
-  return { completeBoot, startGo2rtc };
+  return { completeBoot };
 }

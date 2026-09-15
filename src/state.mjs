@@ -18,7 +18,6 @@ export function createState() {
       lastActivity: Date.now(), // ms of the last poll heartbeat / realtime event (liveness clock)
       pushConnected: false,
       pushSince: Date.now(),
-      go2rtcProc: undefined,
     },
     // Interval handles, armed once at boot and cleared on shutdown.
     timers: { watchdog: null, streamIdle: null, rtspIdle: null },
