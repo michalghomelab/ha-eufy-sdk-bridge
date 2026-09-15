@@ -39,6 +39,50 @@ export function createHttpHandler(ctx) {
     }
     if (!flags.ready) return json(res, 503, { error: "not authenticated", auth: ctx.authStatus() });
 
+    // FORK DIAGNOSTIC — why is half a camera's entity list stuck at "unknown"?
+    //
+    // A host builds its entities from the property manifest and fills them from the state map. An
+    // entry present in the first and missing from the second is an entity that can never read. This
+    // puts both side by side, and also asks getProperty() per name: the SDK documents the singular
+    // read as serving every published entry, so if it answers where getProperties() is silent, the
+    // gap is in the bulk read rather than in the device.
+    if (kind === "debug" && sn) {
+      const dev = await eufy.getDevice(sn);
+      const meta = dev.describe();
+      const specs = dev.properties ?? [];
+      const bulk = dev.getProperties();
+      const rows = specs.map((spec) => {
+        const one = dev.getProperty?.(spec.name);
+        return {
+          name: spec.name,
+          param: spec.param ?? null,
+          type: spec.type,
+          kind: spec.kind,
+          writable: spec.writable ?? false,
+          unexposed: spec.unexposed ?? false,
+          provenance: spec.provenance ?? null,
+          inBulk: spec.name in bulk,
+          bulkValue: bulk[spec.name]?.value ?? null,
+          singleValue: one?.value ?? null,
+        };
+      });
+      const dark = rows.filter((r) => !r.inBulk);
+      return json(res, 200, {
+        sn,
+        model: meta.model,
+        modelName: meta.modelName,
+        capabilities: meta.capabilities,
+        counts: {
+          manifest: rows.length,
+          inBulk: rows.length - dark.length,
+          dark: dark.length,
+          darkButSingleAnswers: dark.filter((r) => r.singleValue !== null).length,
+        },
+        dark: dark.map((r) => r.name),
+        properties: rows,
+      });
+    }
+
     // A current still: a fresh live burst, falling back to the retained push thumbnail.
     if (kind === "snapshot" && sn) {
       try {
