@@ -46,6 +46,22 @@ export function createHttpHandler(ctx) {
     // puts both side by side, and also asks getProperty() per name: the SDK documents the singular
     // read as serving every published entry, so if it answers where getProperties() is silent, the
     // gap is in the bulk read rather than in the device.
+    // FORK DIAGNOSTIC — does the camera answer a CMD_GET_* id directly over P2P, when the cloud
+    // param list never carried a value for it? GET /debug/<sn>/query/<param> (param decimal, e.g.
+    // 1105 for motion detection). Reuses the SDK's debugP2pQuery — proven wire, unverified reply
+    // shape for these older ids. 15s timeout; a timeout means either the id is wrong for this
+    // device family or it genuinely isn't queryable this way.
+    if (kind === "debug" && sn && url.pathname.split("/")[3] === "query") {
+      const param = Number(url.pathname.split("/")[4]);
+      if (!Number.isFinite(param)) return json(res, 400, { error: "param must be a number" });
+      try {
+        const payload = await eufy.debugP2pQuery(sn, param);
+        return json(res, 200, { sn, param, payload });
+      } catch (e) {
+        return json(res, 504, { sn, param, error: String(e?.message ?? e) });
+      }
+    }
+
     if (kind === "debug" && sn) {
       const dev = await eufy.getDevice(sn);
       const meta = dev.describe();
