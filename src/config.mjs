@@ -8,6 +8,9 @@ const truthy = (v) => /^(1|true|yes|on)$/i.test(String(v ?? ""));
 
 /** The SDK event names broadcast to every connected WS client. */
 export const FORWARDED_EVENTS = [
+  "propertyChanged",
+  "deviceAdded",
+  "deviceRemoved",
   "motion",
   "personDetected",
   "strangerDetected",

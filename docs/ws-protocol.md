@@ -90,8 +90,10 @@ Request a fresh challenge (new captcha image / new 2FA code).
 Every device the account exposes. _(Requires `auth.state == "ok"`.)_
 
 ```jsonc
-// →
+// → cached live models (normal frontend polling)
 { "id": 4, "cmd": "devices.list" }
+// → force a fresh SDK/cloud snapshot (post-write reconciliation)
+{ "id": 4, "cmd": "devices.list", "refresh": true }
 // ←
 {
   "id": 4, "ok": true,
@@ -104,6 +106,10 @@ Every device the account exposes. _(Requires `auth.state == "ok"`.)_
       "codec": "camera",
       "capabilities": ["video","snapshot","motion","camera","rtsp","battery","light","ptz","audio","info"],
       "state": { "battery": 74, "motion": false, "light": true, "statusLed": true },
+      "properties": [
+        { "name": "battery", "type": "number", "unit": "%", "kind": "percent", "writable": false },
+        { "name": "statusLed", "type": "bool", "writable": true }
+      ],
       "stream": "/stream/EXAMPLE-CAM-0001"
     },
     { "sn": "EXAMPLE-SENSOR-0002", "name": "Entry Sensor", "model": "T8900",
@@ -117,6 +123,10 @@ Every device the account exposes. _(Requires `auth.state == "ok"`.)_
 - `name` is the owner's device name (from `device_name`); it falls back to `modelName` when the device is unnamed.
 - `model` is the T-code (e.g. `T8410`); `modelName` is the product display name (e.g. `Indoor Cam Pan & Tilt`).
 - `state` is a flat `{ property: value }` map of the device's **current** values; reading it schedules a background refresh, and semantic events (below) push changes between reads.
+- `properties` is the device's property manifest (the same payload `device.properties` returns), embedded
+  so a frontend does not need one extra RPC per device during setup.
+- The default call describes the bridge's retained live models. `refresh: true` rebuilds them from a
+  fresh SDK/cloud snapshot and is intended for explicit reconciliation after a write, not routine polling.
 - `stream` is present only on devices with live video (cameras/doorbells).
 - `streaming` (cameras/doorbells only) is `true` while a live P2P feed is actually open right now — the
   same signal the `streamState` event carries, so a frontend can seed a "Streaming" sensor from the list.
@@ -279,11 +289,13 @@ Advisory only — the media connection closing is the real "stop". _(Requires au
 
 ### Lifecycle
 
-| event   | payload                                 | when                               |
-| ------- | --------------------------------------- | ---------------------------------- |
-| `hello` | `{ schemaVersion, auth: { state, … } }` | on connect                         |
-| `auth`  | `{ state, image?, method?, retry? }`    | auth state changed                 |
-| `ready` | `{ schemaVersion }`                     | login complete + devices/go2rtc up |
+| event           | payload                                 | when                               |
+| --------------- | --------------------------------------- | ---------------------------------- |
+| `hello`         | `{ schemaVersion, auth: { state, … } }` | on connect                         |
+| `auth`          | `{ state, image?, method?, retry? }`    | auth state changed                 |
+| `ready`         | `{ schemaVersion }`                     | login complete + devices/go2rtc up |
+| `deviceAdded`   | SDK device record                       | account roster gains a device      |
+| `deviceRemoved` | SDK device record                       | account roster loses a device      |
 
 ```json
 { "event": "hello", "schemaVersion": 1, "auth": { "state": "ok" } }
@@ -296,13 +308,14 @@ Advisory only — the media connection closing is the real "stop". _(Requires au
 Each carries the SDK's event payload (typically `deviceSn` / `stationSn` plus event-specific fields).
 
 ```json
+{ "event": "propertyChanged", "deviceSn": "EXAMPLE-CAM…", "property": "statusLed", "value": true }
 { "event": "motion", "deviceSn": "EXAMPLE-CAM…", "stationSn": "EXAMPLE-HB…" }
 { "event": "contactState", "deviceSn": "EXAMPLE-SENSOR…", "open": true }
 { "event": "batteryLevel", "deviceSn": "EXAMPLE-CAM…", "to": "74" }
 { "event": "doorbellPress", "deviceSn": "EXAMPLE-DOORBELL…" }
 ```
 
-Full set: `motion`, `personDetected`, `strangerDetected`, `doorbellPress`, `petDetection`,
+Full set: `propertyChanged`, `deviceAdded`, `deviceRemoved`, `motion`, `personDetected`, `strangerDetected`, `doorbellPress`, `petDetection`,
 `packageDelivered`, `packageTaken`, `packageStranded`, `soundDetected`, `cryingDetected`,
 `vehicleDetected`, `dogDetected`, `armingModeChanged`, `alarm`, `lockState`, `contactState`,
 `batteryLevel`, `batteryAlert`, `ptzNotify`, `smartLightState`.

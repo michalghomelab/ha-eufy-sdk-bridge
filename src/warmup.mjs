@@ -361,7 +361,7 @@ export function createWarmup(ctx) {
   async function refreshStoredSnapshotFor(sn) {
     let cam;
     try {
-      cam = (await eufy.getDevice(sn)).camera?.();
+      cam = (await ctx.deviceFor(sn)).camera?.();
     } catch {
       return false;
     }

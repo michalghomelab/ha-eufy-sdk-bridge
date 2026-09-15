@@ -19,6 +19,8 @@ import { createWsServer } from "../src/ws-server.mjs";
 
 function fakeEufy() {
   const ptzCalls = [];
+  const calls = { getDevices: 0, getDevice: 0 };
+  const listeners = new Map();
   const devices = {
     CAM1: {
       describe: () => ({
@@ -60,11 +62,14 @@ function fakeEufy() {
   };
   return {
     ptzCalls,
+    calls,
     pollIntervalMs: 600000,
     async getDevices() {
+      calls.getDevices++;
       return [{ sn: "CAM1" }, { sn: "SENSOR1" }];
     },
     async getDevice(sn) {
+      calls.getDevice++;
       const d = devices[sn];
       if (!d) throw new Error(`no device ${sn}`);
       return d;
@@ -72,7 +77,14 @@ function fakeEufy() {
     setPollInterval(ms) {
       this.pollIntervalMs = ms;
     },
-    on() {}, // event wiring is a no-op in the smoke harness (completeBoot isn't run)
+    on(event, handler) {
+      const handlers = listeners.get(event) ?? [];
+      handlers.push(handler);
+      listeners.set(event, handlers);
+    },
+    emit(event, payload) {
+      for (const handler of listeners.get(event) ?? []) handler(payload);
+    },
   };
 }
 
@@ -125,7 +137,34 @@ test("device view: describe shape + camera vs sensor", async () => {
   assert.equal(cam.streaming, false); // nothing piping
   assert.equal(cam.canReboot, false);
   assert.deepEqual(cam.state, { battery: 74, motion: false });
+  assert.deepEqual(
+    cam.properties.map((property) => property.name),
+    ["battery", "motion", "detectVehicle"],
+  );
   assert.equal(sensor.stream, undefined); // not a camera
+  httpServer.close();
+});
+
+test("device view: repeated lists reuse the roster and retained device models", async () => {
+  const { ctx, httpServer } = buildCtx();
+
+  await ctx.deviceList();
+  await ctx.deviceList();
+
+  assert.deepEqual(ctx.eufy.calls, { getDevices: 1, getDevice: 2 });
+
+  await ctx.deviceList({ refresh: true });
+  assert.deepEqual(ctx.eufy.calls, { getDevices: 2, getDevice: 4 });
+  httpServer.close();
+});
+
+test("device view: concurrent reads share one model construction", async () => {
+  const { ctx, httpServer } = buildCtx();
+
+  const [first, second] = await Promise.all([ctx.deviceFor("CAM1"), ctx.deviceFor("CAM1")]);
+
+  assert.equal(first, second);
+  assert.equal(ctx.eufy.calls.getDevice, 1);
   httpServer.close();
 });
 
@@ -153,6 +192,27 @@ test("completeBoot broadcasts ready after the device warm-up", async () => {
   httpServer.close();
 });
 
+test("completeBoot forwards property and roster changes", async () => {
+  const { ctx, state, httpServer } = buildCtx();
+  const sent = [];
+  ctx.broadcast = (message) => sent.push(message);
+  ctx.warmFaceRoster = async () => {};
+  ctx.warmLastEventImages = async () => {};
+
+  await ctx.completeBoot();
+  ctx.eufy.emit("propertyChanged", { deviceSn: "CAM1", property: "motion", value: true });
+  ctx.eufy.emit("deviceAdded", { sn: "CAM2" });
+  ctx.eufy.emit("deviceRemoved", { sn: "SENSOR1" });
+
+  assert.deepEqual(sent.slice(1), [
+    { event: "propertyChanged", deviceSn: "CAM1", property: "motion", value: true },
+    { event: "deviceAdded", sn: "CAM2" },
+    { event: "deviceRemoved", sn: "SENSOR1" },
+  ]);
+  for (const timer of Object.values(state.timers)) clearInterval(timer);
+  httpServer.close();
+});
+
 test("ws: auth.status, unknown cmd, and the auth gate", async () => {
   const { ctx, state, httpServer } = buildCtx();
 
@@ -176,6 +236,8 @@ test("ws: auth.status, unknown cmd, and the auth gate", async () => {
   const listed = await wsCall(ctx, { id: 4, cmd: "devices.list" });
   assert.equal(listed[0].ok, true);
   assert.equal(listed[0].devices.length, 2);
+  await wsCall(ctx, { id: 6, cmd: "devices.list", refresh: true });
+  assert.equal(ctx.eufy.calls.getDevices, 2);
   assert.deepEqual((await wsCall(ctx, { id: 5, cmd: "config.get" }))[0], { id: 5, ok: true, pollMs: 600000 });
   httpServer.close();
 });

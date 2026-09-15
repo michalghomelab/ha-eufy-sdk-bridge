@@ -88,7 +88,7 @@ export function createHttpHandler(ctx) {
     }
 
     if (kind === "debug" && sn) {
-      const dev = await eufy.getDevice(sn);
+      const dev = await ctx.deviceFor(sn);
       const meta = dev.describe();
       const specs = dev.properties ?? [];
       const bulk = dev.getProperties();
@@ -127,7 +127,7 @@ export function createHttpHandler(ctx) {
     // A current still: a fresh live burst, falling back to the retained push thumbnail.
     if (kind === "snapshot" && sn) {
       try {
-        const cam = (await eufy.getDevice(sn)).camera?.();
+        const cam = (await ctx.deviceFor(sn)).camera?.();
         if (!cam) return json(res, 404, { error: "no camera on this device" });
         let jpeg;
         try {
@@ -151,7 +151,7 @@ export function createHttpHandler(ctx) {
       // outcome so a "Last event never updates" report shows whether HA even asked and what it got back.
       const file = path.join(eventImageDir, `last-event-${sn}.jpg`);
       try {
-        const cam = (await eufy.getDevice(sn)).camera?.();
+        const cam = (await ctx.deviceFor(sn)).camera?.();
         if (!cam?.snapshotStored) {
           ctx.eventLog(`/event-image ${sn} → 404 no camera on device`);
           return json(res, 404, { error: "no camera on this device" });

@@ -13,6 +13,8 @@ export function createBoot(ctx) {
     flags.booting = true;
     try {
       eufy.on("deviceState", ctx.bumpActivity); // poll heartbeat — the watchdog's liveness signal
+      eufy.on("deviceAdded", ctx.invalidateDeviceList);
+      eufy.on("deviceRemoved", ctx.invalidateDeviceList);
       if (DEBUG) {
         eufy.on("p2pConnect", (sn) => dbg(`p2pConnect station=${sn}`));
         eufy.on("p2pClose", (sn) => dbg(`p2pClose station=${sn}`));
@@ -33,7 +35,7 @@ export function createBoot(ctx) {
           // frontend clients it reaches. 0 clients means HA is not connected, so nothing updates there.
           const clients = ctx.state.clients.size;
           ctx.eventLog(
-            `push in: ${e} sn=${payload?.deviceSn ?? "?"}` +
+            `push in: ${e} sn=${payload?.deviceSn ?? payload?.sn ?? "?"}` +
               `${detection ? " [detection → HA refreshes Last event]" : ""}` +
               ` → broadcast to ${clients} frontend client(s)` +
               `${clients === 0 ? " (NONE CONNECTED — HA will not update)" : ""}`,

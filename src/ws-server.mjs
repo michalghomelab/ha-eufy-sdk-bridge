@@ -85,11 +85,11 @@ export function createWsServer(ctx, httpServer) {
       }
       switch (cmd) {
         case "devices.list":
-          return reply({ devices: await ctx.deviceList() });
+          return reply({ devices: await ctx.deviceList({ refresh: msg.refresh === true }) });
         case "device.state":
           return reply({ device: await ctx.describeDevice(msg.sn) });
         case "device.properties": {
-          const dev = await eufy.getDevice(msg.sn);
+          const dev = await ctx.deviceFor(msg.sn);
           return reply({ sn: msg.sn, properties: ctx.propertySpecs(dev) });
         }
         case "device.set": {
@@ -113,7 +113,7 @@ export function createWsServer(ctx, httpServer) {
           // methods are reachable — the same controls the SDK intends a caller to invoke.
           const action = String(msg.action ?? "");
           const args = Array.isArray(msg.args) ? msg.args : [];
-          const dev = await eufy.getDevice(msg.sn);
+          const dev = await ctx.deviceFor(msg.sn);
           // Capability surfaces that expose actions. Add more accessors here as needed.
           const surfaces = [dev.smartLight?.(), dev.camera?.(), dev.ptz?.()].filter(Boolean);
           const surface = surfaces.find((s) => typeof s?.[action] === "function");
