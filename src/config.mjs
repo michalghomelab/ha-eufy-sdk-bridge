@@ -87,10 +87,12 @@ export function loadConfig(env = process.env) {
     // take WebRTC away from the instance that actually has viewers. A bridge with go2rtc off still
     // serves WS control, snapshots and event images; only its own live video goes away.
     go2rtc: env.BRIDGE_GO2RTC == null ? true : truthy(env.BRIDGE_GO2RTC),
-    // Drop property-manifest entries the device reports no value for. OFF by default: a host that
-    // wants an entity for every advertised property keeps getting one. ON, the manifest describes the
-    // unit rather than the model, so a host stops building controls that can never read.
-    pruneUnreadProperties: truthy(env.BRIDGE_PRUNE_UNREAD_PROPERTIES),
+    // Drop property-manifest entries the device reports no value for. ON by default: a control that
+    // can never read is a defect rather than a feature, and leaving it to a flag means every install
+    // ships the defect until someone finds the switch. Set to 0 for an entity per advertised property,
+    // read or not.
+    pruneUnreadProperties:
+      env.BRIDGE_PRUNE_UNREAD_PROPERTIES == null ? true : truthy(env.BRIDGE_PRUNE_UNREAD_PROPERTIES),
   };
 
   const DEBUG = truthy(env.BRIDGE_DEBUG);
