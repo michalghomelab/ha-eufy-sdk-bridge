@@ -13,7 +13,7 @@ function json(res, code, body) {
 }
 
 export function createHttpHandler(ctx) {
-  const { cfg, eufy, SCHEMA_VERSION, eventImageDir } = ctx;
+  const { cfg, eufy, SCHEMA_VERSION, eventImageDir, DEBUG, bridgeVersion, sdkRevision } = ctx;
   const { flags } = ctx.state;
   const { streaming, idleSuspended, activeStreams, lastPullAttempt, rtspLastActive } = ctx.state;
 
@@ -25,6 +25,8 @@ export function createHttpHandler(ctx) {
       const idleSec = Math.round((Date.now() - flags.lastActivity) / 1000);
       return json(res, 200, {
         ok: true,
+        bridgeVersion,
+        sdkRevision,
         schemaVersion: SCHEMA_VERSION,
         auth: ctx.authStatus(),
         sessionLost: flags.sessionLost, // cloud token kicked/expired since boot → re-auth in progress/needed
@@ -37,6 +39,10 @@ export function createHttpHandler(ctx) {
         pushIdleSec: flags.pushConnected ? 0 : Math.round((Date.now() - flags.pushSince) / 1000),
       });
     }
+    // Diagnostics expose raw device metadata and can WRITE camera properties. Keep the entire surface
+    // absent during normal operation; enabling BRIDGE_DEBUG is an explicit, temporary operator choice.
+    if (kind === "debug" && !DEBUG) return json(res, 404, { error: "not found" });
+
     if (!flags.ready) return json(res, 503, { error: "not authenticated", auth: ctx.authStatus() });
 
     // FORK DIAGNOSTIC — why is half a camera's entity list stuck at "unknown"?
@@ -213,5 +219,23 @@ export function createHttpHandler(ctx) {
     }
 
     return json(res, 404, { error: "not found" });
+  };
+}
+
+/**
+ * Adapt the async route handler to Node's callback-style HTTP server. Node does not observe a rejected
+ * promise returned by a request listener; without this guard an unexpected route error becomes an
+ * unhandled rejection and can terminate the bridge.
+ */
+export function guardHttpHandler(handler, onError = (error) => console.error("[bridge] http:", error)) {
+  return (req, res) => {
+    void handler(req, res).catch((error) => {
+      onError(error);
+      if (res.headersSent) {
+        res.destroy(error);
+        return;
+      }
+      json(res, 500, { error: "internal server error" });
+    });
   };
 }

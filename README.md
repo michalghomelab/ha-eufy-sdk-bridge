@@ -1,13 +1,12 @@
 # ha-eufy-sdk-bridge
 
-[![CI](https://github.com/mega-yfue/ha-eufy-sdk-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mega-yfue/ha-eufy-sdk-bridge/actions/workflows/ci.yml)
+[![CI](https://github.com/michalghomelab/ha-eufy-sdk-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/michalghomelab/ha-eufy-sdk-bridge/actions/workflows/ci.yml)
 [![node](https://img.shields.io/badge/node-%E2%89%A524-brightgreen?logo=nodedotjs&logoColor=white)](./package.json)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
 
 The host-facing daemon: one process that logs into eufy **once** and exposes the
-[`eufy-sdk`](https://github.com/mega-yfue/eufy-sdk) to a frontend — Home Assistant, a web UI,
-anything. Ships as a multi-arch Docker image with [go2rtc](https://github.com/AlexxIT/go2rtc)
-bundled, so live camera video is available as RTSP / WebRTC / MSE / HLS with nothing else to install.
+[`eufy-sdk`](https://github.com/michalghomelab/eufy-sdk) to a frontend — Home Assistant, a web UI,
+anything. This fork is a small amd64 control bridge; Frigate consumes the camera's native RTSP.
 
 ```
 WS    :3000/ws             control, state, events     ← the frontend talks to this
@@ -22,13 +21,13 @@ drift out of sync.
 
 ## Run it
 
-Pull the published image and run it (bundles the SDK + go2rtc):
+Pull the published image and run it (the exact SDK revision is bundled):
 
 ```bash
 docker run -d --name eufy-bridge --network host \
   -e EUFY_EMAIL='you@example.com' -e EUFY_PASSWORD='…' -e EUFY_COUNTRY='GB' \
   -v /opt/eufy-bridge-data:/app/data \
-  ghcr.io/mega-yfue/ha-eufy-sdk-bridge:latest
+  ghcr.io/michalghomelab/ha-eufy-sdk-bridge:latest
 ```
 
 or with Compose (`cp .env.example .env` first): `docker compose up -d`.
@@ -46,7 +45,7 @@ or with Compose (`cp .env.example .env` first): `docker compose up -d`.
 | [`ha-eufy-sdk`](https://github.com/mega-yfue/ha-eufy-sdk)             | the HACS integration (front door)             |
 
 > Status: working — WS control + auth-over-WS (2FA/captcha), device listing, snapshots, and go2rtc
-> streaming. Published image: `ghcr.io/mega-yfue/ha-eufy-sdk-bridge` (multi-arch: `amd64` · `arm64`).
+> streaming. Published image: `ghcr.io/michalghomelab/ha-eufy-sdk-bridge` (`linux/amd64`).
 > **Publishing a GitHub Release** builds and pushes the versioned + `:latest` tags
 > automatically ([`.github/workflows/publish-ghcr.yml`](./.github/workflows/publish-ghcr.yml)); the same
 > build runs locally via [`scripts/publish-multiarch.sh`](./scripts/publish-multiarch.sh). A merge to the
@@ -60,9 +59,9 @@ are cut.
 
 ## Develop
 
-The bridge is ESM (no build step) and depends on the SDK as a normal npm package
-([`@mega-yfue/eufy-sdk`](https://www.npmjs.com/package/@mega-yfue/eufy-sdk)) — `npm install` pulls it
-from the registry, no sibling checkout needed.
+The bridge is ESM and depends on the SDK fork at the exact commit pinned in both package files. The
+SDK's `prepare` hook builds its TypeScript sources during installation, so stale checked-in `dist`
+output cannot leak into a release.
 
 ```bash
 npm install

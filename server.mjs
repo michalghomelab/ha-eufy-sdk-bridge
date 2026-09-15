@@ -22,12 +22,16 @@ import { createStreamIdle } from "./src/stream-idle.mjs";
 import { createWatchdog } from "./src/watchdog.mjs";
 import { createAuth } from "./src/auth.mjs";
 import { createBoot } from "./src/boot.mjs";
-import { createHttpHandler } from "./src/http-routes.mjs";
+import { createHttpHandler, guardHttpHandler } from "./src/http-routes.mjs";
 import { createWsServer } from "./src/ws-server.mjs";
 import { closeStreamClients } from "./streams.mjs";
 
 const config = loadConfig();
 const { cfg, DEBUG, DEBUG_P2P, EVENT_LOG, eventImageDir } = config;
+const packageJson = JSON.parse(fs.readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+const packageLock = JSON.parse(fs.readFileSync(new URL("./package-lock.json", import.meta.url), "utf8"));
+const sdkResolved = packageLock.packages?.["node_modules/@mega-yfue/eufy-sdk"]?.resolved ?? "";
+const sdkRevision = sdkResolved.match(/#([0-9a-f]{40})$/)?.[1] ?? "unknown";
 
 // last-event thumbnails live in the (mounted) data dir alongside the session file.
 fs.mkdirSync(eventImageDir, { recursive: true });
@@ -44,7 +48,7 @@ if (!cfg.email || !cfg.password) {
 // ── assemble ctx ────────────────────────────────────────────────────────────────────────────────────
 const state = createState();
 const eufy = createEufy(config);
-const ctx = { ...config, eufy, state };
+const ctx = { ...config, eufy, state, bridgeVersion: packageJson.version, sdkRevision };
 
 // Each factory reads its cross-module deps off ctx lazily, so this single merge is enough — nothing here
 // is called until login/handlers run, by which point ctx is complete.
@@ -59,7 +63,7 @@ Object.assign(
   createBoot(ctx),
 );
 
-const httpServer = http.createServer(createHttpHandler(ctx));
+const httpServer = http.createServer(guardHttpHandler(createHttpHandler(ctx)));
 Object.assign(ctx, createWsServer(ctx, httpServer)); // adds send / broadcast / handleMessage
 
 // ── SDK event wiring ──────────────────────────────────────────────────────────────────────────────────

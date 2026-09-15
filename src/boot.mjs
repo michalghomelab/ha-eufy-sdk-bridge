@@ -57,7 +57,7 @@ export function createBoot(ctx) {
       void (async () => {
         await ctx.warmFaceRoster(); // resolve person_id -> name for face-recognition events
         await ctx.warmLastEventImages(); // populate "Last event" from local HomeBase storage on first load
-      })();
+      })().catch((error) => console.error(`[bridge] optional warm-up failed: ${error?.message ?? error}`));
     } finally {
       flags.booting = false;
     }

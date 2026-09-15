@@ -12,7 +12,7 @@
 # recur here — re-add `linux/arm64` to `--platform` (and the binfmt step) if this fork ever
 # needs to serve non-amd64 hardware.
 #
-# The SDK is a PUBLIC npm package (pulled by `npm ci` in the build), so no SDK checkout / build context.
+# The SDK is a public GitHub dependency pinned to an exact commit and built by its `prepare` script.
 # Uses the docker CLI in shell rather than the docker/* marketplace actions, because the org's Actions
 # policy allows only actions owned by mega-yfue or created by GitHub — so `actions/checkout` is fine,
 # but `docker/build-push-action` etc. are not. buildx is preinstalled on the runner. Push uses the
@@ -36,7 +36,22 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.21.0"
+          cache: npm
+
+      - name: Verify release source
+        run: |
+          npm ci
+          npm run lint
+          npm test
+          for f in $(git ls-files '*.mjs'); do node --check "$f"; done
 
       - name: Resolve the image name
         # The owner decides the GHCR namespace, but an image reference admits neither

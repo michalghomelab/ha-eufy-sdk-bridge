@@ -14,7 +14,7 @@ import { createStreamIdle } from "../src/stream-idle.mjs";
 import { createWatchdog } from "../src/watchdog.mjs";
 import { createAuth } from "../src/auth.mjs";
 import { createBoot } from "../src/boot.mjs";
-import { createHttpHandler } from "../src/http-routes.mjs";
+import { createHttpHandler, guardHttpHandler } from "../src/http-routes.mjs";
 import { createWsServer } from "../src/ws-server.mjs";
 
 function fakeEufy() {
@@ -81,7 +81,7 @@ function buildCtx(extraEnv = {}) {
   const config = loadConfig({ EUFY_EMAIL: "x@y.z", EUFY_PASSWORD: "pw", ...extraEnv });
   const state = createState();
   const eufy = fakeEufy();
-  const ctx = { ...config, eufy, state };
+  const ctx = { ...config, eufy, state, bridgeVersion: "test-version", sdkRevision: "test-sdk-sha" };
   Object.assign(
     ctx,
     createFaces(ctx),
@@ -194,10 +194,70 @@ test("http: /healthz reports ok + auth + empty streaming", async () => {
   await handler(req, res);
   const out = JSON.parse(body);
   assert.equal(out.ok, true);
+  assert.equal(out.bridgeVersion, "test-version");
+  assert.equal(out.sdkRevision, "test-sdk-sha");
   assert.deepEqual(out.auth, { state: "pending" });
   assert.deepEqual(out.streaming, []);
   assert.equal(out.streamIdleMs, 300000);
   httpServer.close();
+});
+
+test("http: debug routes are absent unless BRIDGE_DEBUG is enabled", async () => {
+  const { ctx, httpServer } = buildCtx();
+  ctx.state.flags.ready = true;
+  const handler = createHttpHandler(ctx);
+  const req = { url: "/debug/CAM1", headers: { host: "localhost" }, on() {} };
+  let status;
+  let body;
+  const res = {
+    writeHead(code) {
+      status = code;
+    },
+    end(value) {
+      body = value;
+    },
+  };
+
+  await handler(req, res);
+
+  assert.equal(status, 404);
+  assert.deepEqual(JSON.parse(body), { error: "not found" });
+  httpServer.close();
+});
+
+test("http: rejected async handlers become a controlled 500 response", async () => {
+  let status;
+  let body;
+  let logged;
+  const done = new Promise((resolve) => {
+    const handler = guardHttpHandler(
+      async () => {
+        throw new Error("boom");
+      },
+      (error) => {
+        logged = error;
+      },
+    );
+    handler(
+      {},
+      {
+        headersSent: false,
+        writeHead(code) {
+          status = code;
+        },
+        end(value) {
+          body = value;
+          resolve();
+        },
+      },
+    );
+  });
+
+  await done;
+
+  assert.equal(status, 500);
+  assert.match(logged.message, /boom/);
+  assert.deepEqual(JSON.parse(body), { error: "internal server error" });
 });
 
 test("ws: device.action reaches the ptz surface", async () => {
