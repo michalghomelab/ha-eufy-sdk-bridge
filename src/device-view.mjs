@@ -4,7 +4,7 @@
 // not `deviceClass === "camera"` (the SDK downgrades a camera behind a HomeBase to "other").
 
 export function createDeviceView(ctx) {
-  const { eufy } = ctx;
+  const { eufy, cfg } = ctx;
   const { streaming } = ctx.state;
 
   /**
@@ -45,7 +45,18 @@ export function createDeviceView(ctx) {
    * without knowing eufy wire ids. Wire-only fields (paramType, decode, aliases) are omitted.
    */
   function propertySpecs(dev) {
-    return (dev.properties ?? []).map((p) => ({
+    // A device's property table is the union of everything its model MIGHT carry, so a camera
+    // advertises reads it never performs — vehicle detection on an indoor cam, PIR sensitivity on a
+    // mains one. A host builds an entity per entry, and each unread entry becomes one that is stuck
+    // at "unknown" forever. Dropping the entries with no value leaves the manifest describing what
+    // this unit actually reports.
+    //
+    // Guarded: an empty state means the values have not landed yet (the read schedules a background
+    // refresh), and filtering against nothing would strip the manifest bare. Fall back to the full
+    // table, which is today's behaviour.
+    const read = cfg.pruneUnreadProperties ? dev.getProperties() : null;
+    const keep = read && Object.keys(read).length ? (p) => p.name in read : () => true;
+    return (dev.properties ?? []).filter(keep).map((p) => ({
       name: p.name,
       type: p.type, // "bool" | "number" | "string" | "enum"
       unit: p.unit, // "%", "°C", "dBm", …

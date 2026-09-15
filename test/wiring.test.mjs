@@ -29,6 +29,12 @@ function fakeEufy() {
         capabilities: ["camera", "video", "battery"],
       }),
       getProperties: () => ({ battery: { value: 74 }, motion: { value: false } }),
+      // The model's table, not the unit's: this indoor cam advertises a vehicle read it cannot do.
+      properties: [
+        { name: "battery", type: "number", writable: false },
+        { name: "motion", type: "bool", writable: false },
+        { name: "detectVehicle", type: "bool", writable: true },
+      ],
     },
     SENSOR1: {
       describe: () => ({
@@ -60,8 +66,8 @@ function fakeEufy() {
 }
 
 /** The same assembly server.mjs performs, against a fake client + a non-listening http server. */
-function buildCtx() {
-  const config = loadConfig({ EUFY_EMAIL: "x@y.z", EUFY_PASSWORD: "pw" });
+function buildCtx(extraEnv = {}) {
+  const config = loadConfig({ EUFY_EMAIL: "x@y.z", EUFY_PASSWORD: "pw", ...extraEnv });
   const state = createState();
   const eufy = fakeEufy();
   const ctx = { ...config, eufy, state };
@@ -156,4 +162,25 @@ test("http: /healthz reports ok + auth + empty streaming", async () => {
   assert.deepEqual(out.streaming, []);
   assert.equal(out.streamIdleMs, 300000);
   httpServer.close();
+});
+
+test("the property manifest can be narrowed to what the unit actually reads", async () => {
+  // Default: every advertised property is published, including the one with no value — a host builds
+  // an entity for it and that entity never reads.
+  const full = buildCtx();
+  const dev = await full.ctx.eufy.getDevice("CAM1");
+  assert.deepEqual(
+    full.ctx.propertySpecs(dev).map((p) => p.name),
+    ["battery", "motion", "detectVehicle"],
+  );
+  full.httpServer.close();
+
+  // Pruning on: the unread entry goes, the read ones stay.
+  const pruned = buildCtx({ BRIDGE_PRUNE_UNREAD_PROPERTIES: "1" });
+  const dev2 = await pruned.ctx.eufy.getDevice("CAM1");
+  assert.deepEqual(
+    pruned.ctx.propertySpecs(dev2).map((p) => p.name),
+    ["battery", "motion"],
+  );
+  pruned.httpServer.close();
 });
