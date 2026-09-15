@@ -45,7 +45,17 @@ export function createDeviceView(ctx) {
    * without knowing eufy wire ids. Wire-only fields (paramType, decode, aliases) are omitted.
    */
   function propertySpecs(dev) {
-    return (dev.properties ?? []).map((p) => ({
+    // A device's property table is the union of everything its model MIGHT carry, so a T8410
+    // advertises reads it never performs — vehicle detection, PIR sensitivity, and a dozen more it
+    // has no hardware or firmware path for. A host builds one entity per manifest entry, so an unread
+    // one becomes a control stuck at "unknown" forever. Hardcoded, like the go2rtc removal: this fork
+    // runs beside Frigate and diagnoses dark properties via /debug, not by shipping them as entities.
+    //
+    // Guarded on an empty state — values land on a background refresh, and filtering against nothing
+    // would strip the manifest bare — in which case the full table is served for that one read.
+    const read = dev.getProperties();
+    const keep = Object.keys(read).length ? (p) => p.name in read : () => true;
+    return (dev.properties ?? []).filter(keep).map((p) => ({
       name: p.name,
       type: p.type, // "bool" | "number" | "string" | "enum"
       unit: p.unit, // "%", "°C", "dBm", …
