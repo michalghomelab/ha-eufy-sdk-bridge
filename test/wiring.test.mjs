@@ -9,7 +9,7 @@ import { loadConfig } from "../src/config.mjs";
 import { createState } from "../src/state.mjs";
 import { createFaces } from "../src/faces.mjs";
 import { createDeviceView } from "../src/device-view.mjs";
-import { createWarmup } from "../src/warmup.mjs";
+import { createWarmup, historyRecords } from "../src/warmup.mjs";
 import { createStreamIdle } from "../src/stream-idle.mjs";
 import { createWatchdog } from "../src/watchdog.mjs";
 import { createAuth } from "../src/auth.mjs";
@@ -116,6 +116,23 @@ async function wsCall(ctx, msg) {
   await ctx.handleMessage(ws, Buffer.from(JSON.stringify(msg)));
   return sent;
 }
+
+test("history records: normalises HomeBase and standalone query replies", () => {
+  const homeBaseRow = { device_sn: "CAM1", record_id: 10 };
+  const standaloneRow = { device_sn: "CAM2", record_id: 11 };
+
+  assert.deepEqual(historyRecords({ data: [homeBaseRow] }), [homeBaseRow]);
+  assert.deepEqual(
+    historyRecords({
+      data: [
+        { table_name: "history_record_info", payload: [standaloneRow] },
+        { table_name: "record_crop_picture_info", payload: [{ device_sn: "IGNORE" }] },
+      ],
+    }),
+    [standaloneRow],
+  );
+  assert.deepEqual(historyRecords({ data: "invalid" }), []);
+});
 
 test("propertySpecs: keeps writable properties without observed state", async () => {
   const { ctx, httpServer } = buildCtx();

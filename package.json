@@ -1,6 +1,6 @@
 {
   "name": "ha-eufy-sdk-bridge",
-  "version": "0.2.0-ptz.26",
+  "version": "0.2.0-ptz.27",
   "private": true,
   "type": "module",
   "description": "WebSocket + HTTP control bridge exposing eufy-sdk to Home Assistant and other frontends.",
@@ -18,7 +18,7 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
-    "@mega-yfue/eufy-sdk": "github:michalghomelab/eufy-sdk#95c92cb8771f0f2f78e64b897d40a962e19ccbbc",
+    "@mega-yfue/eufy-sdk": "github:michalghomelab/eufy-sdk#6b7c18e96bb578a059fafb86f40020773d036838",
     "ws": "^8.18.0"
   },
   "devDependencies": {

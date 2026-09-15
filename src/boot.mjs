@@ -26,8 +26,8 @@ export function createBoot(ctx) {
           const detection = DETECTION_EVENTS.has(e);
           if (detection) {
             ctx.noteDetection(payload?.deviceSn);
-            // Local-storage accounts get no push thumbnail, so pull the fresh event cover from HomeBase
-            // storage and (if it changed) nudge HA to re-fetch — otherwise "Last event" stays frozen.
+            // Pull the fresh event cover from cloud/local storage and, once bytes actually change,
+            // nudge HA to fetch it. Local-storage cameras write the crop after the push arrives.
             ctx.onDetectionRefresh?.(payload?.deviceSn);
           }
           // Narrow event trace (on by default): a push/semantic event arrived — say what it is, which
@@ -36,7 +36,7 @@ export function createBoot(ctx) {
           const clients = ctx.state.clients.size;
           ctx.eventLog(
             `push in: ${e} sn=${payload?.deviceSn ?? payload?.sn ?? "?"}` +
-              `${detection ? " [detection → HA refreshes Last event]" : ""}` +
+              `${detection ? " [detection → scheduling Last event refresh]" : ""}` +
               ` → broadcast to ${clients} frontend client(s)` +
               `${clients === 0 ? " (NONE CONNECTED — HA will not update)" : ""}`,
           );
