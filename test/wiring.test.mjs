@@ -105,12 +105,12 @@ async function wsCall(ctx, msg) {
   return sent;
 }
 
-test("propertySpecs: exposes only properties with observed state", async () => {
+test("propertySpecs: keeps writable properties without observed state", async () => {
   const { ctx, httpServer } = buildCtx();
   const dev = await ctx.eufy.getDevice("CAM1");
   const names = ctx.propertySpecs(dev).map((p) => p.name);
-  assert.deepEqual(names, ["battery", "motion"]);
-  assert.ok(!names.includes("detectVehicle")); // writable but unread would be permanently unknown in HA
+  assert.deepEqual(names, ["battery", "motion", "detectVehicle"]);
+  assert.ok(names.includes("detectVehicle")); // valid write-only controls must remain configurable
   assert.ok(!names.includes("pirSensitivityRaw")); // neither read nor writable
   httpServer.close();
 });

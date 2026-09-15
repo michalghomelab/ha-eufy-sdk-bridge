@@ -45,15 +45,13 @@ export function createDeviceView(ctx) {
    * without knowing eufy wire ids. Wire-only fields (paramType, decode, aliases) are omitted.
    */
   function propertySpecs(dev) {
-    // A device's property table is the union of everything its model MIGHT carry, while getProperties
-    // is the unit's actually observed state. HA cannot represent a writable-but-unread property
-    // honestly: it creates an unknown switch with separate on/off lightning actions. Publishing those
-    // produced a wall of dead-looking controls on T8410 (test mode, detection bits, night vision, …).
-    // Expose only properties for which this unit supplied a value. The full unfiltered table remains
-    // available at GET /debug/<sn> for protocol work; it just does not become an HA entity.
+    // A missing value does not mean a property is bogus. Several legitimate controls can be written
+    // over P2P even though this camera's cloud snapshot never reports them. Model support is decided
+    // in the SDK's availability gates; here we keep every observed property plus every writable one.
+    // Only a property that is both unread and read-only is useless to a host.
     const read = dev.getProperties();
     return (dev.properties ?? [])
-      .filter((p) => p.name in read)
+      .filter((p) => p.name in read || p.writable)
       .map((p) => ({
         name: p.name,
         type: p.type, // "bool" | "number" | "string" | "enum"
