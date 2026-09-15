@@ -90,7 +90,7 @@ export function createHttpHandler(ctx) {
         const one = dev.getProperty?.(spec.name);
         return {
           name: spec.name,
-          param: spec.param ?? null,
+          param: spec.paramType ?? spec.param ?? null,
           type: spec.type,
           kind: spec.kind,
           writable: spec.writable ?? false,
