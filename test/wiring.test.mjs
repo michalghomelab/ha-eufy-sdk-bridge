@@ -165,22 +165,21 @@ test("http: /healthz reports ok + auth + empty streaming", async () => {
 });
 
 test("the property manifest can be narrowed to what the unit actually reads", async () => {
-  // Default: every advertised property is published, including the one with no value — a host builds
-  // an entity for it and that entity never reads.
-  const full = buildCtx();
-  const dev = await full.ctx.eufy.getDevice("CAM1");
+  // Default: the unread entry is gone, so no host builds a control that can never read.
+  const pruned = buildCtx();
+  const dev = await pruned.ctx.eufy.getDevice("CAM1");
   assert.deepEqual(
-    full.ctx.propertySpecs(dev).map((p) => p.name),
-    ["battery", "motion", "detectVehicle"],
-  );
-  full.httpServer.close();
-
-  // Pruning on: the unread entry goes, the read ones stay.
-  const pruned = buildCtx({ BRIDGE_PRUNE_UNREAD_PROPERTIES: "1" });
-  const dev2 = await pruned.ctx.eufy.getDevice("CAM1");
-  assert.deepEqual(
-    pruned.ctx.propertySpecs(dev2).map((p) => p.name),
+    pruned.ctx.propertySpecs(dev).map((p) => p.name),
     ["battery", "motion"],
   );
   pruned.httpServer.close();
+
+  // Opted out: every advertised property is published, value or not.
+  const full = buildCtx({ BRIDGE_PRUNE_UNREAD_PROPERTIES: "0" });
+  const dev2 = await full.ctx.eufy.getDevice("CAM1");
+  assert.deepEqual(
+    full.ctx.propertySpecs(dev2).map((p) => p.name),
+    ["battery", "motion", "detectVehicle"],
+  );
+  full.httpServer.close();
 });
