@@ -44,12 +44,13 @@ export function createBoot(ctx) {
       // a `stream`, NOT deviceClass==="camera" (the SDK downgrades a camera behind a HomeBase to "other"),
       // so the device list HA sees is the one the bridge warmed.
       const summaries = await ctx.deviceList();
+      const cameraCount = summaries.filter((device) => device.stream).length;
       flags.ready = true;
       flags.lastActivity = Date.now(); // start the liveness clock at boot, before the first poll
       timers.watchdog ??= setInterval(() => void ctx.watchdogTick(), 2 * 60_000);
       if (cfg.streamIdleMs) timers.streamIdle ??= setInterval(() => ctx.streamIdleTick(), 30_000);
       if (cfg.rtspIdleOffMs) timers.rtspIdle ??= setInterval(() => void ctx.rtspIdleSweep(), 60_000);
-      console.log(`[bridge] ready — ${summaries.length} devices, ${cams.length} camera stream(s)`);
+      console.log(`[bridge] ready — ${summaries.length} devices, ${cameraCount} camera stream(s)`);
       ctx.broadcast({ event: "ready", schemaVersion: SCHEMA_VERSION });
       // Both read the P2P DB via a shared `dbChunk` stream — run sequentially so their accumulators don't
       // cross-contaminate. Non-blocking so `ready` isn't held up.

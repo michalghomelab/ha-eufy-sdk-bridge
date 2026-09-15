@@ -138,6 +138,21 @@ test("auth state machine: pending → ok → reauth", () => {
   assert.deepEqual(ctx.authStatus(), { state: "reauth" });
 });
 
+test("completeBoot broadcasts ready after the device warm-up", async () => {
+  const { ctx, state, httpServer } = buildCtx();
+  const sent = [];
+  ctx.broadcast = (message) => sent.push(message);
+  ctx.warmFaceRoster = async () => {};
+  ctx.warmLastEventImages = async () => {};
+
+  await ctx.completeBoot();
+
+  assert.equal(state.flags.ready, true);
+  assert.deepEqual(sent, [{ event: "ready", schemaVersion: ctx.SCHEMA_VERSION }]);
+  for (const timer of Object.values(state.timers)) clearInterval(timer);
+  httpServer.close();
+});
+
 test("ws: auth.status, unknown cmd, and the auth gate", async () => {
   const { ctx, state, httpServer } = buildCtx();
 
