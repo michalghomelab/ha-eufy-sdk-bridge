@@ -51,6 +51,25 @@ export function createHttpHandler(ctx) {
     // 1105 for motion detection). Reuses the SDK's debugP2pQuery — proven wire, unverified reply
     // shape for these older ids. 15s timeout; a timeout means either the id is wrong for this
     // device family or it genuinely isn't queryable this way.
+    // FORK DIAGNOSTIC — does a WRITE reach the camera for a property whose READ path is dark? Read
+    // and write are separate wires (property.set is a P2P SET frame; the dark ones all come from a
+    // cloud snapshot / query that never carries a value), so a property can plausibly accept writes
+    // it can never be read back confirming. GET /debug/<sn>/write/<propName>/<value> reuses
+    // eufy.setProperty — the exact call every working switch already uses — so a success here is
+    // proof this property is controllable even though HA can never show its state.
+    if (kind === "debug" && sn && url.pathname.split("/")[3] === "write") {
+      const propName = url.pathname.split("/")[4];
+      const raw = decodeURIComponent(url.pathname.split("/")[5] ?? "");
+      if (!propName || !raw) return json(res, 400, { error: "need /write/<propName>/<value>" });
+      const value = raw === "true" ? true : raw === "false" ? false : Number.isNaN(Number(raw)) ? raw : Number(raw);
+      try {
+        await eufy.setProperty(sn, propName, value);
+        return json(res, 200, { sn, propName, value, result: "sent — camera gave no read-back to verify" });
+      } catch (e) {
+        return json(res, 502, { sn, propName, value, error: String(e?.message ?? e) });
+      }
+    }
+
     if (kind === "debug" && sn && url.pathname.split("/")[3] === "query") {
       const param = Number(url.pathname.split("/")[4]);
       if (!Number.isFinite(param)) return json(res, 400, { error: "param must be a number" });
