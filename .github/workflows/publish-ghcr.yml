@@ -1,15 +1,22 @@
-# Publish the multi-arch bridge image to GitHub Container Registry on a release.
+# Publish the bridge image to GitHub Container Registry on a release.
 #
 # Trigger: a published GitHub Release (the release tag names the version), or a manual run.
-# Output:  ghcr.io/<owner>/ha-eufy-sdk-bridge:<version> + :latest — one manifest carrying
-#          linux/amd64 + linux/arm64 (node:24-alpine has no arm/v7 base).
+# Output:  ghcr.io/<owner>/ha-eufy-sdk-bridge:<version> + :latest, linux/amd64 only.
+#
+# amd64-only is a deliberate fork divergence from upstream (which also builds arm64 for HA
+# OS / Raspberry Pi installs): this fork's only real deployment target is an amd64 homelab
+# host, and cross-building arm64 needs QEMU user-mode emulation (tonistiigi/binfmt) — which
+# has actually wedged a run here (`npm ci` under qemu: "uncaught target signal 4 (Illegal
+# instruction)", the job then hanging until GitHub's own timeout cancelled it ~7 minutes
+# later). Dropping the platform removes emulation entirely, so that failure class cannot
+# recur here — re-add `linux/arm64` to `--platform` (and the binfmt step) if this fork ever
+# needs to serve non-amd64 hardware.
 #
 # The SDK is a PUBLIC npm package (pulled by `npm ci` in the build), so no SDK checkout / build context.
 # Uses the docker CLI in shell rather than the docker/* marketplace actions, because the org's Actions
 # policy allows only actions owned by mega-yfue or created by GitHub — so `actions/checkout` is fine,
-# but `docker/build-push-action` etc. are not. buildx is preinstalled on the runner; arm64 emulation
-# comes from a `tonistiigi/binfmt` image pull (an image, not an action). Push uses the built-in
-# GITHUB_TOKEN via `packages: write`.
+# but `docker/build-push-action` etc. are not. buildx is preinstalled on the runner. Push uses the
+# built-in GITHUB_TOKEN via `packages: write`.
 name: Publish image to GHCR
 
 on:
@@ -65,19 +72,16 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "Publishing $IMAGE:$VER (+ :latest)"
 
-      - name: Enable arm64 emulation (binfmt)
-        run: docker run --rm --privileged tonistiigi/binfmt --install arm64
-
       - name: Create a buildx builder
         run: docker buildx create --use --name eufy-ci --driver docker-container
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Build and push the multi-arch manifest
+      - name: Build and push the amd64 manifest
         run: |
           docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+            --platform linux/amd64 \
             --tag "$IMAGE:${{ steps.v.outputs.version }}" \
             --tag "$IMAGE:latest" \
             --push \
@@ -88,5 +92,5 @@ jobs:
           {
             echo "### Published \`$IMAGE:${{ steps.v.outputs.version }}\`"
             echo ""
-            echo "Platforms: \`linux/amd64\`, \`linux/arm64\` · also tagged \`:latest\`"
+            echo "Platform: \`linux/amd64\` · also tagged \`:latest\`"
           } >> "$GITHUB_STEP_SUMMARY"
