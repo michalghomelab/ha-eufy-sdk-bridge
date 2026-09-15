@@ -105,15 +105,13 @@ async function wsCall(ctx, msg) {
   return sent;
 }
 
-test("propertySpecs: keeps a writable-but-unread property, drops a read-only-and-unread one", async () => {
+test("propertySpecs: exposes only properties with observed state", async () => {
   const { ctx, httpServer } = buildCtx();
   const dev = await ctx.eufy.getDevice("CAM1");
   const names = ctx.propertySpecs(dev).map((p) => p.name);
-  // battery/motion: read, kept regardless. detectVehicle: never read, but writable — a control this
-  // camera can act on even though HA can never show its confirmed state, per entity.py's optimistic
-  // hold. Nothing here is BOTH unread and unwritable, so that drop path needs its own device below.
-  assert.deepEqual(names, ["battery", "motion", "detectVehicle"]);
-  assert.ok(!names.includes("pirSensitivityRaw")); // neither read nor writable — genuinely dead weight
+  assert.deepEqual(names, ["battery", "motion"]);
+  assert.ok(!names.includes("detectVehicle")); // writable but unread would be permanently unknown in HA
+  assert.ok(!names.includes("pirSensitivityRaw")); // neither read nor writable
   httpServer.close();
 });
 

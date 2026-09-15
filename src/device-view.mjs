@@ -45,33 +45,24 @@ export function createDeviceView(ctx) {
    * without knowing eufy wire ids. Wire-only fields (paramType, decode, aliases) are omitted.
    */
   function propertySpecs(dev) {
-    // A device's property table is the union of everything its model MIGHT carry, so a T8410
-    // advertises reads it never performs — vehicle detection, PIR sensitivity, and a dozen more it
-    // has no hardware or firmware path for. A host builds one entity per manifest entry, so an unread,
-    // unwritable one becomes a control stuck at "unknown" forever with no way to act on it either.
-    // Hardcoded, like the go2rtc removal: this fork runs beside Frigate and diagnoses those via
-    // /debug, not by shipping them as entities.
-    //
-    // A property that reads dark but IS writable stays, though: several of this camera's controls
-    // (motion/pet detection, audio recording, night vision) turned out to be exactly that — the wire
-    // this SDK read from never carries a value, but a write still reaches the camera. Entity.py's
-    // property entities already hold an optimistic value after a write for precisely this shape, so
-    // HA shows what was last SET rather than "unknown" forever. Only a property with neither a read
-    // NOR a write is truly dead weight.
-    //
-    // Guarded on an empty state — values land on a background refresh, and filtering against nothing
-    // would strip the manifest bare — in which case the full table is served for that one read.
+    // A device's property table is the union of everything its model MIGHT carry, while getProperties
+    // is the unit's actually observed state. HA cannot represent a writable-but-unread property
+    // honestly: it creates an unknown switch with separate on/off lightning actions. Publishing those
+    // produced a wall of dead-looking controls on T8410 (test mode, detection bits, night vision, …).
+    // Expose only properties for which this unit supplied a value. The full unfiltered table remains
+    // available at GET /debug/<sn> for protocol work; it just does not become an HA entity.
     const read = dev.getProperties();
-    const keep = Object.keys(read).length ? (p) => p.name in read || p.writable : () => true;
-    return (dev.properties ?? []).filter(keep).map((p) => ({
-      name: p.name,
-      type: p.type, // "bool" | "number" | "string" | "enum"
-      unit: p.unit, // "%", "°C", "dBm", …
-      kind: p.kind, // percent | celsius | dbm | seconds | …
-      writable: p.writable, // a setter exists (device.set accepts it)
-      enumValues: p.enumValues, // { raw: label } for enums
-      description: p.description,
-    }));
+    return (dev.properties ?? [])
+      .filter((p) => p.name in read)
+      .map((p) => ({
+        name: p.name,
+        type: p.type, // "bool" | "number" | "string" | "enum"
+        unit: p.unit, // "%", "°C", "dBm", …
+        kind: p.kind, // percent | celsius | dbm | seconds | …
+        writable: p.writable, // a setter exists (device.set accepts it)
+        enumValues: p.enumValues, // { raw: label } for enums
+        description: p.description,
+      }));
   }
 
   async function deviceList() {
